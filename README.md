@@ -1,24 +1,9 @@
-# 纸间 · 随身扫描
+# Third-party libraries
 
-手机优先的本地扫描 PWA，无第三方依赖，不上传照片，不调用 AI 服务。
+OpenCV.js: official 4.x self-contained build, https://docs.opencv.org/4.x/opencv.js (retrieved 2026-10-18). Apache 2.0; see opencv-LICENSE. WASM is embedded; no CDN at runtime. The URL is moving; downloaded bytes are pinned in this repository.
 
-运行：`npm start`，电脑打开 http://localhost:5173 。同一 Wi-Fi 下手机可访问电脑局域网 IP 的 5173 端口进行功能预览；HTTP 局域网地址无法启用 Service Worker 或可靠安装。手机完整安装和离线使用需要部署到 HTTPS 静态站点。
+jscanify v1.4.0: https://github.com/puffinsoft/jscanify/tree/v1.4.0 , MIT; see jscanify-LICENSE. Local modification releases temporary contour Mat handles during area comparison.
 
-支持：批量导入照片、四角拖动和透视拉正、白纸范围估计、旋转、原图/自然/文字/黑白增强、亮度、彩色笔迹清理、页面排序、当前文档本地保存、多页 JPEG 图片型 PDF 导出、桌面安装与离线缓存。
+OpenCV edge detection and quadrilateral contour scoring is primary; jscanify is a secondary candidate. Both run in a classic Web Worker. Detection can fail on low contrast, clipped pages, irregular paper or severe shadows.
 
-自动裁剪使用明亮低饱和纸张的启发式检测，对白底白纸、复杂背景或阴影可能不准确，必须检查四角。彩色笔迹清理会同时移除彩色正文，无法恢复被遮挡文字；不支持可靠去除黑色手写。PDF 暂无 OCR 文字层。
-
-导入图片最长边压缩到 2400 像素；预览使用缩略图，导出使用保存的大图。当前只保存一份工作文档，新建会清空当前文档。浏览器清理站点数据、隐私模式或设备存储不足可能导致数据丢失，请导出重要文档。首次完整加载后可离线打开；没有远程字体或外部脚本请求。
-
-部署静态文件：index.html、style.css、app.js、sw.js、manifest.webmanifest、icon.svg、icon-192.png、icon-512.png。更新资源时同步修改 sw.js 的缓存版本。
-
-
-## 图像处理升级（v3）
-
-OpenCV.js + jscanify 随站点本地打包，无外部 CDN 请求。首次完整加载后离线可用。自动裁剪使用多组边缘检测、闭运算和四边形轮廓评分，识别结果仍需确认。文字增强使用纸面背景估计、光照归一化和局部增强；黑白使用局部阈值。自然增强保留彩色。支持去阴影强度调节、后台线程处理；重复编辑保留增强前底图和参数。
-
-可减轻浅折痕明暗，不能铺平弯曲文字、修复失焦或恢复被遮挡内容。DocRes / UVDoc 模型尚未接入。
-
-部署必须额外包含 processing-core.js、scan-worker.js 和整个 vendor 文件夹。OpenCV.js 约 11 MB，首次缓存需要下载完整引擎。无需编译。
-
-检查：node verify.cjs；node verify-processing.cjs。后者实际加载 OpenCV WASM，验证倾斜纸张检测、纯色背景拒识、渐变阴影归一化和笔画保留。合成测试不能替代 iPhone 实拍验证。
+processing-core.js uses local background estimation, illumination normalization and adaptive thresholding. It is not an AI restoration model: no true curved-page unwarping or deblurring is implemented.

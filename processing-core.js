@@ -47,5 +47,17 @@
       out[i*4]=out[i*4+1]=out[i*4+2]=value;
     }return out;
   }
-  root.ScanCore={enhance,meanBlur};
+  function dewarp(data,w,h,top=0,bottom=0){
+    if(!top&&!bottom)return new Uint8ClampedArray(data);
+    const out=new Uint8ClampedArray(data.length);
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+      const u=x/Math.max(1,w-1),v=y/Math.max(1,h-1),bow=4*u*(1-u);
+      const sy=y+bow*h*(top*(1-v)+bottom*v)/100,k=(y*w+x)*4;
+      if(sy<0||sy>h-1){out[k]=out[k+1]=out[k+2]=out[k+3]=255;continue}
+      const y0=Math.floor(sy),f=sy-y0,a=(y0*w+x)*4,b=(Math.min(h-1,y0+1)*w+x)*4;
+      for(let c=0;c<3;c++)out[k+c]=data[a+c]*(1-f)+data[b+c]*f;
+      out[k+3]=255;
+    }return out;
+  }
+  root.ScanCore={enhance,meanBlur,dewarp};
 })(globalThis);
