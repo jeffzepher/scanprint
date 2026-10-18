@@ -1,6 +1,6 @@
-import {historyStore} from './history.js?v=12';
-import {perspective,validQuad,imageCanvas,makeCanvas,processImage} from './app.js?v=12';
-import './document-core.js?v=12';
+import {historyStore} from './history.js?v=13';
+import {perspective,validQuad,imageCanvas,makeCanvas,processImage} from './app.js?v=13';
+import './document-core.js?v=13';
 const el=id=>document.getElementById(id),core=DocumentCore;
 let pdfLibrary;
 async function pdfLib(){if(globalThis.PDFLib)return globalThis.PDFLib;if(!pdfLibrary)pdfLibrary=new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='./vendor/pdf-lib.min.js';s.onload=()=>resolve(globalThis.PDFLib);s.onerror=()=>{pdfLibrary=null;reject(Error('PDF 组件加载失败'))};document.head.append(s)});return pdfLibrary}
@@ -39,8 +39,53 @@ function currentPortraitSize(){return core.portraitSize(el('portraitSize').value
 for(const id of ['portraitFile','portraitCamera'])el(id).onchange=async e=>{const file=e.target.files[0];e.target.value='';if(!file||portraitBusy)return;closeCamera();portraitLock(true);try{acceptPortrait(await readPhoto(file))}catch(e){portraitMessage(e.message)}finally{portraitLock(false)}};
 function renderPortrait(){if(!portrait)return;const c=el('portraitCanvas'),size=currentPortraitSize();c.width=size.w;c.height=size.h;const cx=c.getContext('2d'),bg=el('portraitBackground').value,source=bg!=='original'&&cutout?cutout:portrait,r=core.cropRect(source.width,source.height,c.width,c.height,Number(el('portraitZoom').value),Number(el('portraitX').value),Number(el('portraitY').value));cx.fillStyle=bg==='original'?'#fff':bg;cx.fillRect(0,0,c.width,c.height);cx.drawImage(source,r.sx,r.sy,r.sw,r.sh,0,0,c.width,c.height)}
 for(const id of ['portraitSize','portraitCustomW','portraitCustomH','portraitZoom','portraitX','portraitY'])el(id).oninput=()=>{el('customPortraitSize').hidden=el('portraitSize').value!=='custom';try{currentPortraitSize();renderPortrait()}catch(e){portraitMessage(e.message)}};
-el('portraitBackground').onchange=()=>{renderPortrait();if(el('portraitBackground').value!=='original'&&!cutout)portraitMessage('底色已选择，点击“智能抠图 / 换底”应用。')};
-el('segmentPortrait').onclick=async()=>{if(!portrait||portraitBusy)return;portraitLock(true);portraitMessage('正在本机抠图，首次启动需要加载人像组件…');try{await tick();if(!segmenter){const vision=await import('./vendor/vision/vision_bundle.mjs'),files=await vision.FilesetResolver.forVisionTasks(new URL('./vendor/vision',import.meta.url).href);segmenter=await vision.ImageSegmenter.createFromOptions(files,{baseOptions:{modelAssetPath:new URL('./vendor/vision/selfie_segmenter.tflite',import.meta.url).href,delegate:'CPU'},runningMode:'IMAGE',outputCategoryMask:false,outputConfidenceMasks:true})}const scale=Math.min(1,1024/Math.max(portrait.width,portrait.height)),input=makeCanvas(Math.round(portrait.width*scale),Math.round(portrait.height*scale));input.getContext('2d').drawImage(portrait,0,0,input.width,input.height);const result=segmenter.segment(input);try{const mask=result.confidenceMasks?.at(-1);if(!mask)throw Error('未得到人像轮廓');const values=mask.getAsFloat32Array(),small=makeCanvas(mask.width,mask.height),sx=small.getContext('2d'),pixels=sx.createImageData(mask.width,mask.height);let visible=0;for(let i=0;i<values.length;i++){const alpha=Math.round(Math.max(0,Math.min(1,values[i]))*255);pixels.data[i*4+3]=alpha;if(alpha>128)visible++}if(visible<values.length*.01)throw Error('未识别到清晰人像，请换一张正面照片');sx.putImageData(pixels,0,0);cutout=makeCanvas(portrait.width,portrait.height);const cx=cutout.getContext('2d');cx.drawImage(portrait,0,0);cx.globalCompositeOperation='destination-in';cx.drawImage(small,0,0,cutout.width,cutout.height);cx.globalCompositeOperation='source-over'}finally{result.close()}if(el('portraitBackground').value==='original')el('portraitBackground').value='#ffffff';renderPortrait();portraitMessage('已完成本地抠图，可切换红、白、蓝底，并微调构图。')}catch(e){portraitMessage('抠图失败：'+e.message+'。仍可使用原背景裁剪导出。')}finally{portraitLock(false)}};
+el('portraitBackground').onchange=()=>{renderPortrait();if(el('portraitBackground').value!=='original'&&!cutout)removePortraitBackground()};
+async function removePortraitBackground(){
+ if(!portrait||portraitBusy)return;
+ portraitLock(true);
+ let stage='加载人像组件';
+ try{
+  portraitMessage('正在加载本地人像组件，首次使用约需下载 10 MB…');await tick();
+  if(!segmenter){
+   const vision=await import('./vendor/vision/vision_bundle.mjs');
+   const files=await vision.FilesetResolver.forVisionTasks(new URL('./vendor/vision',import.meta.url).href);
+   stage='加载人像模型';portraitMessage('正在加载人像模型…');
+   const response=await fetch(new URL('./vendor/vision/selfie_segmenter.tflite',import.meta.url));
+   if(!response.ok)throw Error('模型下载失败（'+response.status+'），请联网重试');
+   const model=new Uint8Array(await response.arrayBuffer());
+   if(model.length<100000)throw Error('模型文件不完整，请刷新页面后重试');
+   stage='启动抠图引擎';portraitMessage('正在启动抠图引擎…');await tick();
+   // Explicit HTML canvas avoids the Safari OffscreenCanvas WebGL path.
+   segmenter=await vision.ImageSegmenter.createFromOptions(files,{canvas:document.createElement('canvas'),baseOptions:{modelAssetBuffer:model,delegate:'CPU'},runningMode:'IMAGE',outputCategoryMask:false,outputConfidenceMasks:true});
+  }
+  stage='识别人像';portraitMessage('正在识别人像并清理背景…');await tick();
+  const scale=Math.min(1,768/Math.max(portrait.width,portrait.height)),input=makeCanvas(Math.max(1,Math.round(portrait.width*scale)),Math.max(1,Math.round(portrait.height*scale)));
+  input.getContext('2d').drawImage(portrait,0,0,input.width,input.height);
+  const result=segmenter.segment(input);
+  try{
+   const mask=result.confidenceMasks?.[0];if(!mask)throw Error('未得到人像轮廓');
+   const values=mask.getAsFloat32Array(),small=makeCanvas(mask.width,mask.height),sx=small.getContext('2d'),pixels=sx.createImageData(mask.width,mask.height);
+   let visible=0,background=0;
+   for(let i=0;i<values.length;i++){
+    const confidence=values[i];if(!Number.isFinite(confidence))throw Error('人像结果异常，请重试');
+    // Keep soft hair edges while making the background fully transparent.
+    const t=Math.max(0,Math.min(1,(confidence-.15)/.7));pixels.data[i*4+3]=Math.round(t*t*(3-2*t)*255);
+    if(confidence>.5)visible++;if(confidence<.3)background++;
+   }
+   if(visible<values.length*.01)throw Error('未识别到清晰人像，请使用正面照片');
+   if(background<values.length*.005)throw Error('没有识别出背景，请换一张头部周围留有背景的照片');
+   sx.putImageData(pixels,0,0);
+   const output=makeCanvas(portrait.width,portrait.height),cx=output.getContext('2d');
+   cx.drawImage(portrait,0,0);cx.globalCompositeOperation='destination-in';cx.drawImage(small,0,0,output.width,output.height);cx.globalCompositeOperation='source-over';cutout=output;
+  }finally{result.close()}
+  if(el('portraitBackground').value==='original')el('portraitBackground').value='#ffffff';
+  renderPortrait();portraitMessage('抠图完成，可直接切换白、蓝、红底；请检查发丝和衣领边缘。');
+ }catch(e){
+  try{segmenter?.close()}catch{}segmenter=null;
+  portraitMessage(stage+'失败：'+e.message+'。可点击智能抠图重试，或保留原背景导出。');
+ }finally{portraitLock(false)}
+}
+el('segmentPortrait').onclick=removePortraitBackground;
 el('exportPortrait').onclick=async()=>{if(!portrait||portraitBusy)return;if(el('portraitBackground').value!=='original'&&!cutout){portraitMessage('请先点击智能抠图应用底色，或选择保留原背景。');return}portraitLock(true);portraitMessage('正在导出证件照…');try{renderPortrait();const c=el('portraitCanvas'),size=currentPortraitSize(),format=el('portraitFormat').value;let blob;
 if(format==='png'){blob=await new Promise(resolve=>c.toBlob(resolve,'image/png'));if(!blob)throw Error('图片生成失败');blob=new Blob([core.pngDPI(new Uint8Array(await blob.arrayBuffer()),300)],{type:'image/png'})}else{const lib=await pdfLib(),doc=await lib.PDFDocument.create(),im=await doc.embedPng(c.toDataURL('image/png'));if(format==='sheet'){const page=doc.addPage([152*core.MM,102*core.MM]);const positions=core.sheetLayout(size);if(!positions.length)throw Error('当前尺寸无法放入 6 寸相纸，请选择单张导出或调小尺寸');for(const p of positions)page.drawImage(im,{x:p.x*core.MM,y:(102-p.y-p.h)*core.MM,width:p.w*core.MM,height:p.h*core.MM})}else{const page=doc.addPage([size.mmW*core.MM,size.mmH*core.MM]);page.drawImage(im,{x:0,y:0,width:page.getWidth(),height:page.getHeight()})}blob=new Blob([await doc.save()],{type:'application/pdf'})}const name='证件照_'+timestamp()+(format==='png'?'.png':'.pdf');download(blob,name);try{await historyStore.put({id:crypto.randomUUID(),type:'portrait',name,count:1,size:blob.size,thumb:await historyStore.thumbnail(c.toDataURL('image/jpeg',.7)),blob,filename:name,payload:{photo:portrait.toDataURL('image/jpeg',.95),cutout:cutout?.toDataURL('image/png'),size:el('portraitSize').value,customW:el('portraitCustomW').value,customH:el('portraitCustomH').value,bg:el('portraitBackground').value,zoom:el('portraitZoom').value,x:el('portraitX').value,y:el('portraitY').value,format}});portraitMessage('已导出，并保存到证件照历史。')}catch{portraitMessage('已导出，但历史保存失败，请保留下载文件。')}}catch(e){portraitMessage('导出失败：'+e.message)}finally{portraitLock(false)}};
 window.addEventListener('open-history',async({detail:r})=>{if(r.type!=='portrait'||portraitBusy)return;portraitLock(true);try{const p=r.payload;portrait=await imageCanvas(p.photo,1400);cutout=p.cutout?await imageCanvas(p.cutout,1400):null;for(const [id,value] of [['portraitSize',p.size],['portraitCustomW',p.customW||35],['portraitCustomH',p.customH||45],['portraitBackground',p.bg],['portraitZoom',p.zoom],['portraitX',p.x],['portraitY',p.y],['portraitFormat',p.format]])el(id).value=value;el('customPortraitSize').hidden=p.size!=='custom';renderPortrait();el('portraitDialog').showModal();portraitMessage('已打开历史证件照，可继续调整。')}catch(e){portraitMessage(e.message)}finally{portraitLock(false)}});
@@ -48,7 +93,7 @@ let cameraStream=null,cameraFacing='user',cameraSession=0;
 const cameraDialog=el('portraitCameraDialog'),video=el('portraitVideo');
 function stopCameraStream(){if(cameraStream)for(const track of cameraStream.getTracks())track.stop();cameraStream=null;video.srcObject=null;el('capturePortrait').disabled=true}
 function closeCamera(){cameraSession++;stopCameraStream();if(cameraDialog.open)cameraDialog.close()}
-function fitCameraFrame(){const s=currentPortraitSize(),r=s.w/s.h;el('portraitCameraFrame').style.aspectRatio=`${s.w}/${s.h}`;el('portraitCameraFrame').style.width=Math.min(480,window.innerWidth-32,window.innerHeight*.55*r)+'px';el('cameraPortraitSize').value=el('portraitSize').value;el('cameraCustomSize').hidden=el('portraitSize').value!=='custom';el('cameraCustomW').value=el('portraitCustomW').value;el('cameraCustomH').value=el('portraitCustomH').value}
+function fitCameraFrame(){const s=currentPortraitSize(),r=s.w/s.h;el('portraitCameraFrame').style.aspectRatio=`${s.w}/${s.h}`;el('portraitCameraFrame').style.width=Math.min(480,window.innerWidth-32,window.innerHeight*.62*r)+'px';el('cameraPortraitSize').value=el('portraitSize').value;el('cameraCustomSize').hidden=el('portraitSize').value!=='custom';el('cameraCustomW').value=el('portraitCustomW').value;el('cameraCustomH').value=el('portraitCustomH').value}
 async function startCamera(){const session=++cameraSession;stopCameraStream();el('flipPortraitCamera').disabled=true;el('portraitCameraStatus').textContent='正在打开相机，请允许使用摄像头…';try{if(!navigator.mediaDevices?.getUserMedia)throw Error('当前浏览器无法使用网页相机，请使用系统相机');const stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:cameraFacing},width:{ideal:1280},height:{ideal:1920}},audio:false});if(session!==cameraSession||!cameraDialog.open){stream.getTracks().forEach(t=>t.stop());return}cameraStream=stream;const actual=stream.getVideoTracks()[0]?.getSettings?.().facingMode||cameraFacing;video.style.transform=actual==='user'?'scaleX(-1)':'none';video.srcObject=stream;await video.play();if(session!==cameraSession)return;if(video.videoWidth===0)await new Promise((resolve,reject)=>{const done=()=>{clearTimeout(timer);video.removeEventListener('loadedmetadata',done);resolve()},timer=setTimeout(()=>{video.removeEventListener('loadedmetadata',done);reject(Error('相机画面未就绪，请重试'))},10000);video.addEventListener('loadedmetadata',done,{once:true})});if(session!==cameraSession||!cameraDialog.open)return;el('capturePortrait').disabled=false;el('portraitCameraStatus').textContent='将头部和双肩对齐参考线，保持正面平视。'}catch(error){if(session!==cameraSession)return;stopCameraStream();el('portraitCameraStatus').textContent=error.name==='NotAllowedError'?'相机权限未开启，可在浏览器设置中允许，或点击系统相机 / 相册。':error.message}finally{if(session===cameraSession)el('flipPortraitCamera').disabled=false}}
 el('startPortraitCamera').onclick=()=>{if(portraitBusy)return;try{fitCameraFrame();cameraDialog.showModal();startCamera()}catch(e){portraitMessage(e.message)}};
 el('closePortraitCamera').onclick=closeCamera;cameraDialog.addEventListener('cancel',e=>{e.preventDefault();closeCamera()});cameraDialog.addEventListener('close',()=>{cameraSession++;stopCameraStream()});el('flipPortraitCamera').onclick=()=>{cameraFacing=cameraFacing==='user'?'environment':'user';startCamera()};
