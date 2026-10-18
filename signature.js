@@ -1,4 +1,4 @@
-import {historyStore} from './history.js';
+import {historyStore} from './history.js?v=9';
 import './signing-core.js';
 const el=id=>document.getElementById(id),dialog=el('signDialog'),pageCanvas=el('signPage'),layer=el('signLayer'),pad=el('signaturePad'),pen=pad.getContext('2d');
 let historyId=crypto.randomUUID(),exported=null;
@@ -53,7 +53,7 @@ function setInput(type){inputType=type;el('typedSignature').hidden=type!=='text'
 el('signTextTab').onclick=()=>setInput('text');el('signHandTab').onclick=()=>setInput('hand');
 function drawPad(){pen.clearRect(0,0,pad.width,pad.height);for(const stroke of strokes){pen.strokeStyle=stroke.color;pen.fillStyle=stroke.color;pen.lineWidth=stroke.width;pen.lineCap=pen.lineJoin='round';const p=stroke.points;if(p.length===1){pen.beginPath();pen.arc(p[0].x,p[0].y,stroke.width/2,0,Math.PI*2);pen.fill();continue}pen.beginPath();pen.moveTo(p[0].x,p[0].y);for(let i=1;i<p.length;i++){const mid=i===p.length-1?p[i]:{x:(p[i].x+p[i+1].x)/2,y:(p[i].y+p[i+1].y)/2};pen.quadraticCurveTo(p[i].x,p[i].y,mid.x,mid.y)}pen.stroke()}}
 function point(e){const r=pad.getBoundingClientRect();return {x:Math.max(0,Math.min(pad.width,(e.clientX-r.left)/r.width*pad.width)),y:Math.max(0,Math.min(pad.height,(e.clientY-r.top)/r.height*pad.height))}}
-pad.onpointerdown=e=>{if(current)return;e.preventDefault();current={id:e.pointerId,color:el('signColor').value,width:Number(el('penWidth').value),points:[point(e)]};strokes.push(current);pad.setPointerCapture(e.pointerId);drawPad()};
+pad.onpointerdown=e=>{if(current)return;e.preventDefault();current={id:e.pointerId,color:el('signColor').value,width:penWidth(),points:[point(e)]};strokes.push(current);pad.setPointerCapture(e.pointerId);drawPad()};
 pad.onpointermove=e=>{if(!current||current.id!==e.pointerId)return;const samples=e.getCoalescedEvents?.();for(const sample of samples?.length?samples:[e])current.points.push(point(sample));drawPad()};
 pad.onpointerup=pad.onpointercancel=e=>{if(current?.id===e.pointerId)current=null};el('undoSignature').onclick=()=>{strokes.pop();current=null;drawPad()};el('clearSignature').onclick=()=>{strokes=[];current=null;drawPad()};
 function trim(source){const cx=source.getContext('2d'),{data}=cx.getImageData(0,0,source.width,source.height);let left=source.width,top=source.height,right=-1,bottom=-1;for(let y=0;y<source.height;y++)for(let x=0;x<source.width;x++)if(data[(y*source.width+x)*4+3]>10){left=Math.min(left,x);right=Math.max(right,x);top=Math.min(top,y);bottom=Math.max(bottom,y)}if(right<0)throw Error('请先输入或书写签名');const out=canvas(right-left+21,bottom-top+21);out.getContext('2d').drawImage(source,left,top,right-left+1,bottom-top+1,10,10,right-left+1,bottom-top+1);return out}
@@ -79,7 +79,8 @@ el('signExport').onclick=async()=>{
 };
 setBusy(false);
 
-el('penWidth').oninput=()=>{const width=Number(el('penWidth').value);el('penWidthValue').value=width;for(const stroke of strokes)stroke.width=width;drawPad()};
+function penWidth(){return Number(el('penWidth').value)*pad.width/Math.max(1,pad.getBoundingClientRect().width)}
+el('penWidth').oninput=()=>{const width=penWidth();el('penWidthValue').value=el('penWidth').value+'px';for(const stroke of strokes)stroke.width=width;drawPad()};
 el('signAngle').oninput=()=>el('signAngleValue').value=el('signAngle').value+'°';
 let rotationJob=0;
 async function rotateSignature(angle){const stamp=stamps.find(s=>s.id===selected);if(!stamp||busy)return;setBusy(true);try{const token=++rotationJob;const original=await image(stamp.inkPNG||stamp.png);if(token!==rotationJob||stamp.id!==selected)return;angle=((angle+180)%360+360)%360-180;const r=angle*Math.PI/180,w=Math.max(1,Math.ceil(Math.abs(original.width*Math.cos(r))+Math.abs(original.height*Math.sin(r)))),h=Math.max(1,Math.ceil(Math.abs(original.width*Math.sin(r))+Math.abs(original.height*Math.cos(r)))),c=canvas(w,h),cx=c.getContext('2d');cx.translate(w/2,h/2);cx.rotate(r);cx.drawImage(original,-original.width/2,-original.height/2);const old=await image(stamp.png);if(token!==rotationJob||stamp.id!==selected)return;Object.assign(stamp,SigningCore.fitStamp({...stamp,inkPNG:stamp.inkPNG||stamp.png,png:c.toDataURL('image/png'),angle,ratio:h/w,w:stamp.w*w/old.width},pageCanvas.width/pageCanvas.height));el('signAngle').value=angle;el('signAngleValue').value=angle+'°';el('signSize').value=stamp.w*100;exported=null;drawStamps();await saveHistory()}finally{setBusy(false)}}
