@@ -16,5 +16,17 @@
   const chunk=new Uint8Array(21),view=new DataView(chunk.buffer),ppm=Math.round(dpi/.0254);view.setUint32(0,9);chunk.set([112,72,89,115],4);view.setUint32(8,ppm);view.setUint32(12,ppm);chunk[16]=1;let crc=0xffffffff;for(let i=4;i<17;i++){crc^=chunk[i];for(let b=0;b<8;b++)crc=(crc>>>1)^((crc&1)?0xedb88320:0)}view.setUint32(17,(crc^0xffffffff)>>>0);
   const parts=[bytes.slice(0,8)],input=new DataView(bytes.buffer,bytes.byteOffset,bytes.byteLength);let offset=8;while(offset+12<=bytes.length){const length=input.getUint32(offset),end=offset+length+12;if(end>bytes.length)throw Error('Invalid PNG chunk');const type=String.fromCharCode(...bytes.slice(offset+4,offset+8));if(type!=='pHYs')parts.push(bytes.slice(offset,end));if(type==='IHDR')parts.push(chunk);offset=end}const out=new Uint8Array(parts.reduce((n,p)=>n+p.length,0));let cursor=0;for(const part of parts){out.set(part,cursor);cursor+=part.length}return out
  }
- root.DocumentCore={MM,cardLayout,portraitSize,cropRect,sheetLayout,pngDPI};
+ // Linear-time grayscale guided filter: refine a soft matte using source edges.
+ function refinePortraitAlpha(rgba,alpha,w,h,radius=4){
+  const n=w*h;if(alpha.length!==n||rgba.length!==n*4)throw Error('Invalid matte dimensions');
+  function box(src){const tmp=new Float32Array(n),out=new Float32Array(n),r=radius;
+   for(let y=0;y<h;y++){let sum=0;for(let x=0;x<=Math.min(r,w-1);x++)sum+=src[y*w+x];for(let x=0;x<w;x++){tmp[y*w+x]=sum/(Math.min(w-1,x+r)-Math.max(0,x-r)+1);if(x-r>=0)sum-=src[y*w+x-r];if(x+r+1<w)sum+=src[y*w+x+r+1]}}
+   for(let x=0;x<w;x++){let sum=0;for(let y=0;y<=Math.min(r,h-1);y++)sum+=tmp[y*w+x];for(let y=0;y<h;y++){out[y*w+x]=sum/(Math.min(h-1,y+r)-Math.max(0,y-r)+1);if(y-r>=0)sum-=tmp[(y-r)*w+x];if(y+r+1<h)sum+=tmp[(y+r+1)*w+x]}}return out}
+  const guide=new Float32Array(n),sq=new Float32Array(n),product=new Float32Array(n);
+  for(let i=0;i<n;i++){const g=(rgba[i*4]*.299+rgba[i*4+1]*.587+rgba[i*4+2]*.114)/255;guide[i]=g;sq[i]=g*g;product[i]=g*alpha[i]}
+  const mean=box(guide),meanAlpha=box(alpha),corr=box(sq),cross=box(product),a=new Float32Array(n),b=new Float32Array(n);
+  for(let i=0;i<n;i++){a[i]=(cross[i]-mean[i]*meanAlpha[i])/(Math.max(0,corr[i]-mean[i]*mean[i])+.001);b[i]=meanAlpha[i]-a[i]*mean[i]}
+  const ma=box(a),mb=box(b),out=new Float32Array(n);for(let i=0;i<n;i++)out[i]=Math.max(0,Math.min(1,ma[i]*guide[i]+mb[i]));return out;
+ }
+ root.DocumentCore={refinePortraitAlpha,MM,cardLayout,portraitSize,cropRect,sheetLayout,pngDPI};
 })(globalThis);
