@@ -45,7 +45,7 @@
       // strokes; binary mode is intended for plain printed text.
       // Brightness changes stroke weight explicitly: adding it before the local
       // mean alone cancels the adjustment in locally uniform regions.
-      const value=mode==='bw'?(v<mean-9-brightness*.25?0:255):Math.min(255,Math.max(0,255-Math.max(0,mean-v-6-brightness*.25)*3.1));
+      const value=mode==='bw'?(v<mean-9-brightness*.25?0:255):Math.min(255,Math.max(0,255-Math.max(0,mean-v-8-brightness*.25)*2.2));
       out[i*4]=out[i*4+1]=out[i*4+2]=value;
     }return out;
   }
