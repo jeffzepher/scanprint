@@ -1,5 +1,5 @@
-import {historyStore} from './history.js?v=20';
-const processingWorker=new Worker('./scan-worker.js?v=20');
+import {historyStore} from './history.js?v=21';
+const processingWorker=new Worker('./scan-worker.js?v=21');
 let jobId=0,paintId=0;const jobs=new Map();
 processingWorker.onmessage=({data:m})=>{const job=jobs.get(m.id);if(!job)return;jobs.delete(m.id);clearTimeout(job.timer);m.error?job.reject(Error(m.error)):job.resolve(m)};
 processingWorker.onerror=()=>{for(const job of jobs.values()){clearTimeout(job.timer);job.reject(Error('图像处理引擎未能启动，请刷新重试'))}jobs.clear()};
@@ -78,6 +78,9 @@ function validQuad(p){let sign=0;for(let i=0;i<4;i++){const a=p[i],b=p[(i+1)%4],
 function solve(a,b){const n=b.length;for(let i=0;i<n;i++){let pivot=i;for(let j=i+1;j<n;j++)if(Math.abs(a[j][i])>Math.abs(a[pivot][i]))pivot=j;[a[i],a[pivot]]=[a[pivot],a[i]];[b[i],b[pivot]]=[b[pivot],b[i]];const v=a[i][i];if(Math.abs(v)<1e-10)throw Error('裁剪区域过小');for(let k=i;k<n;k++)a[i][k]/=v;b[i]/=v;for(let j=0;j<n;j++){if(j===i)continue;const f=a[j][i];for(let k=i;k<n;k++)a[j][k]-=f*a[i][k];b[j]-=f*b[i]}}return b}
 function scanRectSize(source,p){
  const dist=(a,b)=>Math.hypot(a[0]-b[0],a[1]-b[1]),ew=Math.max(dist(p[0],p[1]),dist(p[3],p[2])),eh=Math.max(dist(p[0],p[3]),dist(p[1],p[2]));
+ // Clipped corners are intersections with the photograph, not true page
+ // corners. Keep the visible area's aspect rather than calibrating a rectangle.
+ if(p.filter(([x,y])=>x<2||y<2||x>source.width-3||y>source.height-3).length>=3){return {w:Math.max(2,Math.round((dist(p[0],p[1])+dist(p[3],p[2]))/2)),h:Math.max(2,Math.round((dist(p[0],p[3])+dist(p[1],p[2]))/2))}}
  // Recover rectangular aspect from orthogonal vanishing directions. Assume
  // centered principal point and square pixels; focal length is estimated when stable.
  const a=[],b=[],unit=[[0,0],[1,0],[1,1],[0,1]];for(let i=0;i<4;i++){const [x,y]=unit[i],[u,v]=p[i];a.push([x,y,1,0,0,0,-u*x,-u*y],[0,0,0,x,y,1,-v*x,-v*y]);b.push(u,v)}

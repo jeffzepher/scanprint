@@ -1,4 +1,4 @@
-importScripts('./processing-core.js?v=20');
+importScripts('./processing-core.js?v=21');
 let enginePromise;
 async function engine(){
   if(!enginePromise)enginePromise=(async()=>{importScripts('./vendor/opencv.js','./vendor/jscanify.js');const result=await new Promise(resolve=>{const value=self.cv;if(value.Mat)resolve({cv:value});else if(typeof value.then==='function')value.then(v=>resolve({cv:v}));else value.onRuntimeInitialized=()=>resolve({cv:value})});self.cv=result.cv;return result})();
@@ -29,6 +29,36 @@ function refinePaperEdges(points,data,w,h){
   });
   return points.map((p,i)=>{const left=lines[(i+3)%4],right=lines[i],cross=left.d[0]*right.d[1]-left.d[1]*right.d[0];if(Math.abs(cross)<1e-5)return p;const dx=right.a[0]-left.a[0],dy=right.a[1]-left.a[1],t=(dx*right.d[1]-dy*right.d[0])/cross;return [Math.max(0,Math.min(w-1,left.a[0]+t*left.d[0])),Math.max(0,Math.min(h-1,left.a[1]+t*left.d[1]))]});
 }
+function clippedBookPage(gray,w,h,cv){
+ const smooth=new cv.Mat(),edges=new cv.Mat(),lines=new cv.Mat();
+ try{
+  cv.GaussianBlur(gray,smooth,new cv.Size(9,9),0);cv.Canny(smooth,edges,12,40);
+  cv.HoughLinesP(edges,lines,1,Math.PI/720,Math.max(35,Math.round(h*.14)),h*.28,h*.1);
+  const sides=[[],[]];
+  for(let i=0;i<lines.rows;i++){
+   const [x1,y1,x2,y2]=lines.data32S.slice(i*4,i*4+4),dy=y2-y1,dx=x2-x1;
+   if(Math.abs(dy)<h*.28||Math.abs(dx)>Math.abs(dy)*.16)continue;
+   const slope=dx/dy,top=x1-y1*slope,mid=top+slope*h*.5;
+   if(mid<0||mid>w-1||mid>w*.22&&mid<w*.78)continue;
+   sides[mid<w*.5?0:1].push({top,slope,mid,length:Math.abs(dy),clipped:Math.min(y1,y2)<h*.04&&Math.max(y1,y2)>h*.8&&Math.abs(dy)>h*.78});
+  }
+  // Only activate for a long edge running into the photograph boundary.
+  // Ordinary sheets with all four visible corners use the contour detector.
+  if(!sides.flat().some(l=>l.clipped))return null;
+  const choose=(list,left)=>list.filter(l=>l.length>=h*.28).sort((a,b)=>(left?b.mid-a.mid:a.mid-b.mid))[0];
+  const left=choose(sides[0],true),right=choose(sides[1],false);
+  const at=(l,y,fallback)=>l?Math.max(0,Math.min(w-1,l.top+l.slope*y)):fallback;
+  const median=values=>values.sort((a,b)=>a-b)[Math.floor(values.length/2)],pix=(x,y)=>smooth.data[Math.max(0,Math.min(h-1,Math.round(y)))*w+Math.max(0,Math.min(w-1,Math.round(x)))];
+  function horizontal(bottom){let best=8,boundary=bottom?h-1:0;const lo=bottom?Math.floor(h*.95):5,hi=bottom?h-6:Math.ceil(h*.05);
+   for(let y=lo;y<=hi;y++){const differences=[];for(let j=2;j<=8;j++){const x=w*j/10;differences.push((pix(x,y+5)-pix(x,y-5))*(bottom?-1:1))}const score=median(differences);if(score>best){best=score;boundary=y}}
+   return boundary;
+  }
+  const top=horizontal(false),bottom=horizontal(true);
+  const points=[[at(left,top,0),top],[at(right,top,w-1),top],[at(right,bottom,w-1),bottom],[at(left,bottom,0),bottom]];
+  if(points[1][0]-points[0][0]<w*.65||points[2][0]-points[3][0]<w*.65||bottom-top<h*.85)return null;
+  return points;
+ }finally{smooth.delete();edges.delete();lines.delete()}
+}
 async function detect(data,w,h){
   const {cv}=await engine(),src=cv.matFromArray(h,w,cv.CV_8UC4,data),gray=new cv.Mat(),blur=new cv.Mat(),mask=new cv.Mat(),closed=new cv.Mat(),kernel=cv.Mat.ones(5,5,cv.CV_8U);
   let best=null,bestScore=0;
@@ -49,7 +79,7 @@ async function detect(data,w,h){
     }}finally{contours.delete();hierarchy.delete()}
   }
   try{
-    cv.cvtColor(src,gray,cv.COLOR_RGBA2GRAY);cv.GaussianBlur(gray,blur,new cv.Size(5,5),0);
+    cv.cvtColor(src,gray,cv.COLOR_RGBA2GRAY);const book=clippedBookPage(gray,w,h,cv);if(book)return book;cv.GaussianBlur(gray,blur,new cv.Size(5,5),0);
     for(const [low,high] of [[35,110],[70,200]]){cv.Canny(blur,mask,low,high);cv.morphologyEx(mask,closed,cv.MORPH_CLOSE,kernel);inspect(closed)}
     cv.threshold(blur,mask,0,255,cv.THRESH_BINARY+cv.THRESH_OTSU);inspect(mask);
     // Low-saturation connected paper regions also work when the page extends
