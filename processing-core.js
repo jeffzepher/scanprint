@@ -25,14 +25,14 @@
     // thin dark strokes before smoothing, so text does not become the light map.
     const scale=Math.min(1,640/Math.max(w,h)),sw=Math.max(1,Math.round(w*scale)),sh=Math.max(1,Math.round(h*scale)),small=new Float32Array(sw*sh);
     for(let y=0;y<sh;y++)for(let x=0;x<sw;x++){const k=(Math.min(h-1,Math.floor((y+.5)/scale))*w+Math.min(w-1,Math.floor((x+.5)/scale)))*4;small[y*sw+x]=.299*data[k]+.587*data[k+1]+.114*data[k+2]}
-    const radius=Math.max(3,Math.round(Math.min(sw,sh)*.025));
+    const radius=Math.max(3,Math.round(Math.min(sw,sh)*.06));
     const background=meanBlur(maxLine(maxLine(small,sw,sh,radius,true),sw,sh,radius,false),sw,sh,Math.max(2,Math.round(radius*.7)));
     const gray=new Float32Array(w*h);
     for(let y=0;y<h;y++)for(let x=0;x<w;x++){
       const k=(y*w+x)*4,sx=Math.max(0,Math.min(sw-1,(x+.5)*sw/w-.5)),sy=Math.max(0,Math.min(sh-1,(y+.5)*sh/h-.5)),ix=Math.floor(sx),iy=Math.floor(sy),fx=sx-ix,fy=sy-iy;
       const sample=(xx,yy)=>background[Math.min(sh-1,yy)*sw+Math.min(sw-1,xx)];
       const bg=sample(ix,iy)*(1-fx)*(1-fy)+sample(ix+1,iy)*fx*(1-fy)+sample(ix,iy+1)*(1-fx)*fy+sample(ix+1,iy+1)*fx*fy;
-      const lum=.299*data[k]+.587*data[k+1]+.114*data[k+2],gain=1+(Math.min(3.5,250/Math.max(bg,40))-1)*amount;
+      const lum=.299*data[k]+.587*data[k+1]+.114*data[k+2],gain=1+(Math.min(3.5,250/Math.max(bg,40))-1)*(mode==='natural'?amount:1);
       for(let c=0;c<3;c++)out[k+c]=data[k+c]*gain+brightness*2;
       gray[y*w+x]=Math.min(255,lum*gain+brightness*2);out[k+3]=255;
       if(ink&&Math.max(data[k],data[k+1],data[k+2])-Math.min(data[k],data[k+1],data[k+2])>38){gray[y*w+x]=255;out[k]=out[k+1]=out[k+2]=255}
@@ -52,7 +52,17 @@
       // strokes; binary mode is intended for plain printed text.
       // Brightness changes stroke weight explicitly: adding it before the local
       // mean alone cancels the adjustment in locally uniform regions.
-      const value=mode==='bw'?(v<mean-9-brightness*.25?0:255):Math.min(255,Math.max(0,255-Math.max(0,mean-v-8-brightness*.25)*contrast));
+      // Local contrast alone erases interiors of filled black regions: their
+      // local mean is also black. Combine relative strokes with absolute ink
+      // after paper illumination normalization, preserving solid illustrations.
+      const relative=Math.max(0,mean-v-8-brightness*.25)*contrast;
+      const absolute=Math.max(0,178-v-brightness*.25)*255/112;
+      const density=Math.min(255,Math.max(relative,absolute));
+      // A soft noise floor suppresses weak show-through without imposing a
+      // binary threshold on antialiased glyph edges.
+      const confidence=Math.min(1,density/64),cleanDensity=density*confidence*confidence*(3-2*confidence);
+      const coverage=1-Math.pow(1-cleanDensity/255,1.35);
+      const value=mode==='bw'?(Math.max(relative,absolute)>100?0:255):255*(1-coverage);
       const printed=inkSaver?255-(255-value)*.72:value;
       out[i*4]=out[i*4+1]=out[i*4+2]=printed;
     }return out;
