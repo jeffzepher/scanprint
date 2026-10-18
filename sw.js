@@ -1,5 +1,5 @@
-const CACHE='zhijian-v9';
-const FILES=['./','./index.html','./style.css?v=9','./app.js?v=9','./scan-worker.js?v=9','./processing-core.js','./signature.js?v=9','./signing-core.js','./history.js?v=9','./vendor/pdf.min.js','./vendor/pdf.worker.min.js','./vendor/pdf-lib.min.js','./vendor/opencv.js','./vendor/jscanify.js','./manifest.webmanifest','./icon.svg','./icon-192.png','./icon-512.png'];
+const CACHE='zhijian-v10';
+const FILES=['./','./index.html','./style.css?v=10','./app.js?v=10','./scan-worker.js?v=10','./processing-core.js','./signature.js?v=10','./signing-core.js','./history.js?v=10','./vendor/pdf.min.js','./vendor/pdf.worker.min.js','./vendor/pdf-lib.min.js','./vendor/opencv.js','./vendor/jscanify.js','./manifest.webmanifest','./icon.svg','./icon-192.png','./icon-512.png'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(FILES)).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('zhijian-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
 self.addEventListener('fetch',event=>{

@@ -1,5 +1,5 @@
-import {historyStore} from './history.js?v=9';
-const processingWorker=new Worker('./scan-worker.js?v=9');
+import {historyStore} from './history.js?v=10';
+const processingWorker=new Worker('./scan-worker.js?v=10');
 let jobId=0,paintId=0;const jobs=new Map();
 processingWorker.onmessage=({data:m})=>{const job=jobs.get(m.id);if(!job)return;jobs.delete(m.id);clearTimeout(job.timer);m.error?job.reject(Error(m.error)):job.resolve(m)};
 processingWorker.onerror=()=>{for(const job of jobs.values()){clearTimeout(job.timer);job.reject(Error('图像处理引擎未能启动，请刷新重试'))}jobs.clear()};
