@@ -43,7 +43,7 @@
       const v=gray[i],mean=local[i];
       // Local thresholds track remaining shadows. Soft text keeps antialiased
       // strokes; binary mode is intended for plain printed text.
-      const value=mode==='bw'?(v<mean-9?0:255):Math.min(255,Math.max(0,255-(255-v)*1.6-(mean-v)*.35));
+      const value=mode==='bw'?(v<mean-9?0:255):Math.min(255,Math.max(0,255-Math.max(0,mean-v-6)*3.1));
       out[i*4]=out[i*4+1]=out[i*4+2]=value;
     }return out;
   }
