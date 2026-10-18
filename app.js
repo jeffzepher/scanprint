@@ -1,5 +1,5 @@
-import {historyStore} from './history.js?v=10';
-const processingWorker=new Worker('./scan-worker.js?v=10');
+import {historyStore} from './history.js?v=11';
+const processingWorker=new Worker('./scan-worker.js?v=11');
 let jobId=0,paintId=0;const jobs=new Map();
 processingWorker.onmessage=({data:m})=>{const job=jobs.get(m.id);if(!job)return;jobs.delete(m.id);clearTimeout(job.timer);m.error?job.reject(Error(m.error)):job.resolve(m)};
 processingWorker.onerror=()=>{for(const job of jobs.values()){clearTimeout(job.timer);job.reject(Error('图像处理引擎未能启动，请刷新重试'))}jobs.clear()};
@@ -56,3 +56,5 @@ const importCard=document.querySelector('.import-card');importCard.onkeydown=e=>
 window.saveScanProgress=persist;
 
 window.addEventListener('history-deleted',async({detail:r})=>{if(r.type==='scan'&&r.id===scanId){scanId=crypto.randomUUID();pages=[];$('docName').value='我的扫描';render();await persist()}});
+
+export {perspective,validQuad,imageCanvas,makeCanvas,processImage};
