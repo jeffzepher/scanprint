@@ -19,7 +19,7 @@
     return out;
   }
   function enhance(data,w,h,options={}){
-    const {mode='original',brightness=0,ink=false,strength=75}=options,amount=strength/100,out=new Uint8ClampedArray(data.length);
+    const {mode='original',brightness=0,ink=false,inkSaver=false,strength=75}=options,amount=strength/100,out=new Uint8ClampedArray(data.length);
     if(mode==='original'){out.set(data);for(let i=0;i<out.length;i+=4){if(ink&&Math.max(out[i],out[i+1],out[i+2])-Math.min(out[i],out[i+1],out[i+2])>38)out[i]=out[i+1]=out[i+2]=255;for(let c=0;c<3;c++)out[i+c]+=brightness*2;out[i+3]=255}return out}
     // Estimate the paper background at reduced resolution. A max filter removes
     // thin dark strokes before smoothing, so text does not become the light map.
@@ -53,7 +53,8 @@
       // Brightness changes stroke weight explicitly: adding it before the local
       // mean alone cancels the adjustment in locally uniform regions.
       const value=mode==='bw'?(v<mean-9-brightness*.25?0:255):Math.min(255,Math.max(0,255-Math.max(0,mean-v-8-brightness*.25)*contrast));
-      out[i*4]=out[i*4+1]=out[i*4+2]=value;
+      const printed=inkSaver?255-(255-value)*.72:value;
+      out[i*4]=out[i*4+1]=out[i*4+2]=printed;
     }return out;
   }
   function dewarp(data,w,h,top=0,bottom=0){
