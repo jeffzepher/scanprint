@@ -1,4 +1,4 @@
-import {historyStore} from './history.js?v=16';
+import {historyStore} from './history.js?v=17';
 import './signing-core.js';
 const el=id=>document.getElementById(id),dialog=el('signDialog'),pageCanvas=el('signPage'),layer=el('signLayer'),pad=el('signaturePad'),pen=pad.getContext('2d');
 let historyId=crypto.randomUUID(),exported=null;

@@ -38,14 +38,21 @@
       if(ink&&Math.max(data[k],data[k+1],data[k+2])-Math.min(data[k],data[k+1],data[k+2])>38){gray[y*w+x]=255;out[k]=out[k+1]=out[k+2]=255}
     }
     if(mode==='natural')return out;
-    const local=meanBlur(gray,w,h,Math.max(7,Math.round(Math.min(w,h)*.012)));
+    const localRadius=Math.max(7,Math.round(Math.min(w,h)*.012)),local=meanBlur(gray,w,h,localRadius);
+    // A small, bounded unsharp correction restores soft stroke edges without
+    // dilating characters. Local variance adapts contrast for faint print.
+    const fine=mode==='text'?meanBlur(gray,w,h,1):null;
+    let variance=null;if(mode==='text'){const square=new Float32Array(gray.length);for(let i=0;i<gray.length;i++)square[i]=gray[i]*gray[i];variance=meanBlur(square,w,h,localRadius)}
     for(let i=0;i<gray.length;i++){
-      const v=gray[i],mean=local[i];
+      const mean=local[i],detail=fine?gray[i]-fine[i]:0;
+      const correction=Math.abs(detail)>2?Math.max(-16,Math.min(16,detail*.7)):0,v=Math.max(0,Math.min(255,gray[i]+correction));
+      const deviation=variance?Math.sqrt(Math.max(0,variance[i]-mean*mean)):40;
+      const contrast=2.2+(mode==='text'?.65*Math.max(0,Math.min(1,(40-deviation)/30)):0);
       // Local thresholds track remaining shadows. Soft text keeps antialiased
       // strokes; binary mode is intended for plain printed text.
       // Brightness changes stroke weight explicitly: adding it before the local
       // mean alone cancels the adjustment in locally uniform regions.
-      const value=mode==='bw'?(v<mean-9-brightness*.25?0:255):Math.min(255,Math.max(0,255-Math.max(0,mean-v-8-brightness*.25)*2.2));
+      const value=mode==='bw'?(v<mean-9-brightness*.25?0:255):Math.min(255,Math.max(0,255-Math.max(0,mean-v-8-brightness*.25)*contrast));
       out[i*4]=out[i*4+1]=out[i*4+2]=value;
     }return out;
   }
