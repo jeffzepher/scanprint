@@ -1,0 +1,1 @@
+{"name":"zhijian-local-scanner","private":true,"version":"1.0.0","scripts":{"dev":"node server.cjs","start":"node server.cjs","check":"node --check app.js && node --check sw.js && node --check server.cjs"},"type":"module"}
