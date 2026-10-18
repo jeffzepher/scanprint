@@ -46,3 +46,5 @@ dialog:not(.camera-dialog){color:var(--ink);background:#f8faf6;border-color:#dbe
 @media(prefers-reduced-motion:reduce){.tool-card{transition:none}.tool-card:hover,.tool-card:active{transform:none}}
 /* Preserve camera contrast in the dark capture view. */
 .camera-custom-size input{background:#272727;color:#fff;border-color:#444}.camera-size-label select{background:#272727;color:#fff;border-color:#444}.camera-dialog{box-shadow:none}.tool-card span{color:#63786c}#openScanner span{color:#d2e9e1}
+
+#batchStatus{white-space:pre-line;overflow-wrap:anywhere;color:#315648}#batchProgress{display:block;width:100%;height:10px;accent-color:#18766b;border:0;border-radius:8px;overflow:hidden}#batchProgress::-webkit-progress-bar{background:#dfeade;border-radius:8px}#batchProgress::-webkit-progress-value{background:#18766b;border-radius:8px}.batch-tip{font-size:11px;color:#74836d}.page-preview b.needs-review{background:#9a6729;color:white}
