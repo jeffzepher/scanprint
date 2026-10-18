@@ -43,7 +43,9 @@
       const v=gray[i],mean=local[i];
       // Local thresholds track remaining shadows. Soft text keeps antialiased
       // strokes; binary mode is intended for plain printed text.
-      const value=mode==='bw'?(v<mean-9?0:255):Math.min(255,Math.max(0,255-Math.max(0,mean-v-6)*3.1));
+      // Brightness changes stroke weight explicitly: adding it before the local
+      // mean alone cancels the adjustment in locally uniform regions.
+      const value=mode==='bw'?(v<mean-9-brightness*.25?0:255):Math.min(255,Math.max(0,255-Math.max(0,mean-v-6-brightness*.25)*3.1));
       out[i*4]=out[i*4+1]=out[i*4+2]=value;
     }return out;
   }
@@ -59,5 +61,11 @@
       out[k+3]=255;
     }return out;
   }
-  root.ScanCore={enhance,meanBlur,dewarp};
+  function clearMargins(data,w,h,percent=0){
+    const out=new Uint8ClampedArray(data),margin=Math.max(0,Math.round(Math.min(w,h)*Math.min(3,Math.max(0,percent))/100));
+    if(!margin)return out;
+    for(let y=0;y<h;y++)for(let x=0;x<w;x++)if(x<margin||x>=w-margin||y<margin||y>=h-margin){const i=(y*w+x)*4;out[i]=out[i+1]=out[i+2]=out[i+3]=255}
+    return out;
+  }
+  root.ScanCore={enhance,meanBlur,dewarp,clearMargins};
 })(globalThis);

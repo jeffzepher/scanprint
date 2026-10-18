@@ -18,6 +18,18 @@ function commonJS(file){const m={exports:{}};new Function('module','exports','re
   assert.ok(bgLeft>225&&Math.abs(bgLeft-bgRight)<22,`paper illumination ${bgLeft} vs ${bgRight}`);
   assert.ok(output[(16*sw+150)*4]<85,'preserve dark strokes');
   const bw=context.ScanCore.enhance(data,sw,sh,{mode:'bw',strength:100});assert.equal(bw[(16*sw+150)*4],0);assert.equal(bw[(25*sw+150)*4],255);
+  const edgeFixture=new Uint8ClampedArray(100*100*4).fill(0);for(let i=3;i<edgeFixture.length;i+=4)edgeFixture[i]=255;
+  const cleared=context.ScanCore.clearMargins(edgeFixture,100,100,2);assert.equal(cleared[0],255,'clear edge line');assert.equal(cleared[(50*100+50)*4],0,'preserve interior content');assert.deepEqual(context.ScanCore.clearMargins(edgeFixture,100,100,0),edgeFixture,'disable edge cleanup');
+  const faint=new Uint8ClampedArray(100*100*4).fill(255);for(let y=45;y<49;y++)for(let x=20;x<80;x++){const k=(y*100+x)*4;faint[k]=faint[k+1]=faint[k+2]=190}
+  const light=context.ScanCore.enhance(faint,100,100,{mode:'text',brightness:35}),dark=context.ScanCore.enhance(faint,100,100,{mode:'text',brightness:-35});assert.ok(light[(46*100+50)*4]>dark[(46*100+50)*4],'text brightness changes stroke intensity');
+  const cw=180,ch=140,curved=new Uint8ClampedArray(cw*ch*4).fill(255);
+  for(let x=0;x<cw;x++){const u=x/(cw-1),y=Math.round(60+10*4*u*(1-u));for(let dy=-1;dy<=1;dy++){const k=((y+dy)*cw+x)*4;curved[k]=curved[k+1]=curved[k+2]=0}}
+  const flat=context.ScanCore.dewarp(curved,cw,ch,10/ch*100,10/ch*100);
+  for(let x=10;x<cw-10;x++){let darkest=255,line=-1;for(let y=45;y<80;y++){if(flat[(y*cw+x)*4]<darkest){darkest=flat[(y*cw+x)*4];line=y}}assert.ok(Math.abs(line-60)<=2,'straighten curved horizontal stroke')}
+  assert.deepEqual(context.ScanCore.dewarp(data,sw,sh,0,0),data,'zero warp identity');
+  const partial=new cv.Mat(300,400,cv.CV_8UC4,new cv.Scalar(100,60,25,255));
+  const pagePolygon=cv.matFromArray(4,1,cv.CV_32SC2,[60,0,399,0,399,299,70,299]);cv.fillConvexPoly(partial,pagePolygon,new cv.Scalar(205,205,205,255));
+  const clipped=await context.detect(new Uint8ClampedArray(partial.data),400,300);assert.ok(clipped,'detect partially off-frame paper');assert.ok(clipped[0][0]>40&&clipped[0][0]<85,'preserve visible left paper edge');partial.delete();pagePolygon.delete();
   fs.writeFileSync('processing-before.rgba',data);fs.writeFileSync('processing-after.rgba',output);
-  console.log('PASS: real OpenCV perspective detection, blank-image rejection, shadow normalization, stroke preservation, adaptive black/white, original identity');
+  console.log('PASS: real OpenCV perspective detection, blank-image rejection, shadow normalization, stroke preservation, adaptive black/white, original identity, partial paper boundary, curved line straightening, edge cleanup, text brightness');
 })().catch(e=>{console.error(e);process.exitCode=1});

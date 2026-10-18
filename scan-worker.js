@@ -10,6 +10,25 @@ function ordered(points){
   const first=points.reduce((best,p,i)=>p[0]+p[1]<points[best][0]+points[best][1]?i:best,0);
   return points.slice(first).concat(points.slice(0,first));
 }
+function refinePaperEdges(points,data,w,h){
+  const center=points.reduce((c,p)=>[c[0]+p[0]/4,c[1]+p[1]/4],[0,0]);
+  const sample=(x,y)=>{x=Math.max(0,Math.min(w-1,Math.round(x)));y=Math.max(0,Math.min(h-1,Math.round(y)));const k=(y*w+x)*4,max=Math.max(data[k],data[k+1],data[k+2]),min=Math.min(data[k],data[k+1],data[k+2]);return (max-min)/Math.max(max,1)};
+  const lines=points.map((a,i)=>{
+    const b=points[(i+1)%4],dx=b[0]-a[0],dy=b[1]-a[1],len=Math.hypot(dx,dy);let nx=-dy/len,ny=dx/len;
+    if((center[0]-(a[0]+b[0])/2)*nx+(center[1]-(a[1]+b[1])/2)*ny<0){nx=-nx;ny=-ny}
+    const offsets=[],range=Math.round(Math.min(w,h)*.04);
+    for(let j=2;j<=8;j++){
+      const t=j/10,x=a[0]+dx*t,y=a[1]+dy*t;
+      if(x<4||y<4||x>w-5||y>h-5)continue;
+      let score=.09,best=0;
+      for(let offset=-range;offset<=range;offset++){const px=x+offset*nx,py=y+offset*ny;if(px<4||py<4||px>w-5||py>h-5)continue;const transition=sample(px-3*nx,py-3*ny)-sample(px+3*nx,py+3*ny);const weighted=transition-Math.abs(offset)*.0005;if(weighted>score){score=weighted;best=offset}}
+      if(score>.09)offsets.push(best);
+    }
+    const shift=offsets.length>=4?offsets.sort((a,b)=>a-b)[Math.floor(offsets.length/2)]:0;
+    return {a:[a[0]+nx*shift,a[1]+ny*shift],d:[dx,dy]};
+  });
+  return points.map((p,i)=>{const left=lines[(i+3)%4],right=lines[i],cross=left.d[0]*right.d[1]-left.d[1]*right.d[0];if(Math.abs(cross)<1e-5)return p;const dx=right.a[0]-left.a[0],dy=right.a[1]-left.a[1],t=(dx*right.d[1]-dy*right.d[0])/cross;return [Math.max(0,Math.min(w-1,left.a[0]+t*left.d[0])),Math.max(0,Math.min(h-1,left.a[1]+t*left.d[1]))]});
+}
 async function detect(data,w,h){
   const {cv}=await engine(),src=cv.matFromArray(h,w,cv.CV_8UC4,data),gray=new cv.Mat(),blur=new cv.Mat(),mask=new cv.Mat(),closed=new cv.Mat(),kernel=cv.Mat.ones(5,5,cv.CV_8U);
   let best=null,bestScore=0;
@@ -40,7 +59,7 @@ async function detect(data,w,h){
     // jscanify is a secondary candidate, still subject to the same quadrilateral
     // checks; do not accept its largest contour as a document unconditionally.
     if(!best){const scanner=new self.jscanify(),contour=scanner.findPaperContour(gray);if(contour){try{const candidate=new cv.MatVector(),binary=cv.Mat.zeros(h,w,cv.CV_8U);try{candidate.push_back(contour);cv.drawContours(binary,candidate,0,new cv.Scalar(255),-1);inspect(binary)}finally{candidate.delete();binary.delete()}}finally{contour.delete()}}}
-    return best;
+    return best?refinePaperEdges(best,data,w,h):null;
   }finally{src.delete();gray.delete();blur.delete();mask.delete();closed.delete();kernel.delete()}
 }
-self.onmessage=async({data:message})=>{const {id,task,w,h,options}=message;try{const data=new Uint8ClampedArray(message.buffer);if(task==='detect'){self.postMessage({id,result:await detect(data,w,h)})}else{const flat=options?.flatten?ScanCore.dewarp(data,w,h,options.top,options.bottom):data;const out=ScanCore.enhance(flat,w,h,options);self.postMessage({id,buffer:out.buffer},[out.buffer])}}catch(error){self.postMessage({id,error:String(error.message||error)})}};
+self.onmessage=async({data:message})=>{const {id,task,w,h,options}=message;try{const data=new Uint8ClampedArray(message.buffer);if(task==='detect'){self.postMessage({id,result:await detect(data,w,h)})}else{const flat=options?.flatten?ScanCore.dewarp(data,w,h,options.top,options.bottom):data;const enhanced=ScanCore.enhance(flat,w,h,options);const out=options?.mode!=='original'?ScanCore.clearMargins(enhanced,w,h,options?.margin||0):enhanced;self.postMessage({id,buffer:out.buffer},[out.buffer])}}catch(error){self.postMessage({id,error:String(error.message||error)})}};
