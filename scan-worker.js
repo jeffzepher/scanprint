@@ -1,4 +1,4 @@
-importScripts('./processing-core.js?v=24');
+importScripts('./processing-core.js?v=26');
 let enginePromise;
 async function engine(){
   if(!enginePromise)enginePromise=(async()=>{importScripts('./vendor/opencv.js','./vendor/jscanify.js');const result=await new Promise(resolve=>{const value=self.cv;if(value.Mat)resolve({cv:value});else if(typeof value.then==='function')value.then(v=>resolve({cv:v}));else value.onRuntimeInitialized=()=>resolve({cv:value})});self.cv=result.cv;return result})();
