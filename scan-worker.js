@@ -1,4 +1,4 @@
-importScripts('./processing-core.js?v=24');
+importScripts('./processing-core.js?v=25','./doxa-engine.js?v=25');
 let enginePromise;
 async function engine(){
   if(!enginePromise)enginePromise=(async()=>{importScripts('./vendor/opencv.js','./vendor/jscanify.js');const result=await new Promise(resolve=>{const value=self.cv;if(value.Mat)resolve({cv:value});else if(typeof value.then==='function')value.then(v=>resolve({cv:v}));else value.onRuntimeInitialized=()=>resolve({cv:value})});self.cv=result.cv;return result})();
@@ -92,4 +92,4 @@ async function detect(data,w,h){
     return best?refinePaperEdges(best,data,w,h):null;
   }finally{src.delete();gray.delete();blur.delete();mask.delete();closed.delete();kernel.delete()}
 }
-self.onmessage=async({data:message})=>{const {id,task,w,h,options}=message;try{const data=new Uint8ClampedArray(message.buffer);if(task==='detect'){self.postMessage({id,result:await detect(data,w,h)})}else{const flat=options?.flatten?ScanCore.dewarp(data,w,h,options.top,options.bottom):data;const enhanced=ScanCore.enhance(flat,w,h,options);const out=options?.mode!=='original'?ScanCore.clearMargins(enhanced,w,h,options?.margin||0):enhanced;self.postMessage({id,buffer:out.buffer},[out.buffer])}}catch(error){self.postMessage({id,error:String(error.message||error)})}};
+self.onmessage=async({data:message})=>{const {id,task,w,h,options}=message;try{const data=new Uint8ClampedArray(message.buffer);if(task==='detect'){self.postMessage({id,result:await detect(data,w,h)})}else{if(['text','bw'].includes(options?.mode))await DoxaEngine.initialize();const flat=options?.flatten?ScanCore.dewarp(data,w,h,options.top,options.bottom):data;const enhanced=ScanCore.enhance(flat,w,h,options);const out=options?.mode!=='original'?ScanCore.clearMargins(enhanced,w,h,options?.margin||0):enhanced;self.postMessage({id,buffer:out.buffer},[out.buffer])}}catch(error){self.postMessage({id,error:String(error.message||error)})}};

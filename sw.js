@@ -1,5 +1,5 @@
-const CACHE='zhijian-v24';
-const FILES=['./','./index.html','./style.css?v=24','./app.js?v=24','./scan-worker.js?v=24','./processing-core.js?v=24','./signature.js?v=24','./signing-core.js','./history.js?v=24','./documents.js?v=24','./document-core.js?v=24','./vendor/pdf.min.js','./vendor/pdf.worker.min.js','./vendor/pdf-lib.min.js','./vendor/opencv.js','./vendor/jscanify.js','./manifest.webmanifest','./icon.svg','./icon-192.png','./icon-512.png'];
+const CACHE='zhijian-v25';
+const FILES=['./','./index.html','./style.css?v=25','./app.js?v=25','./scan-worker.js?v=25','./processing-core.js?v=25','./doxa-engine.js?v=25','./vendor/doxa/doxaWasm.js','./vendor/doxa/doxaWasm.wasm','./signature.js?v=25','./signing-core.js','./history.js?v=25','./documents.js?v=25','./document-core.js?v=25','./vendor/pdf.min.js','./vendor/pdf.worker.min.js','./vendor/pdf-lib.min.js','./vendor/opencv.js','./vendor/jscanify.js','./manifest.webmanifest','./icon.svg','./icon-192.png','./icon-512.png'];
 self.addEventListener('install',event=>{event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(FILES)).then(()=>self.skipWaiting()))});
 self.addEventListener('activate',event=>{event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(k=>k.startsWith('zhijian-')&&k!==CACHE).map(k=>caches.delete(k)))).then(()=>self.clients.claim()))});
 self.addEventListener('fetch',event=>{
