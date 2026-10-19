@@ -5,7 +5,7 @@
   "scripts": {
     "dev": "node server.cjs",
     "start": "node server.cjs",
-    "check": "node --check app.js && node --check signature.js && node --check signing-core.js && node --check history.js && node --check documents.js && node --check document-core.js && node --check sw.js && node --check server.cjs && node --check processing-core.js && node --check doxa-engine.js && node --check scan-worker.js"
+    "check": "node --check app.js && node --check signature.js && node --check signing-core.js && node --check history.js && node --check documents.js && node --check document-core.js && node --check sw.js && node --check server.cjs"
   },
   "type": "module"
 }

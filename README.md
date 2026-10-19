@@ -134,14 +134,3 @@ MediaPipe SIMD/非 SIMD WASM 与自拍分割模型放在 vendor/vision（约 20M
 
 ## v24：移除 OCR
 按使用需求回滚 v23 的文字识别功能，保留 v22 图像增强、批量扫描等原有功能。移除识别入口、模块和字库；扫描照片和历史不清除。
-
-
-## v25：Doxa 本地文字增强与图文分层
-
-文字增强与黑白模式使用随站点打包的 Doxa CC0 WebAssembly Sauvola 实现。先校正纸面光照，再估计连续灰阶插图区域，文字输出实心笔画与柔和边缘，插图保留灰阶。图文分层参考 ScanTailor Advanced 的处理思路，分割为独立实现的启发式算法，并非移植其 GPL 源码。复杂版面仍可能误分，原图、自然增强模式可保留原貌。省墨模式和多图批量处理继续适用，无 OCR。
-
-WASM 以带重叠边界的小块处理，输出保持当前扫描底图尺寸，不缩成缩略图后再放大。临时缓冲区和算法对象逐块释放。新增部署文件 doxa-engine.js、vendor/doxa/doxaWasm.js 和 vendor/doxa/doxaWasm.wasm；后两者合计约 160 KiB，均纳入 v25 离线缓存。无需编译，无外部 CDN 或图片上传。
-
-DocRes 仅用于本机离线同图效果对照，没有加入手机网页。此轮使用作者仓库链接的演示权重，SHA-256 为 1d6a89d754fe1e58ffd1865eab0ef3f03344798d39197b2d9a77ce4fbc8c02fd，使用 appearance 任务。权重、个人样张与对照图片不发布到 GitHub。
-
-验证：npm run check；node verify-doxa.cjs；node verify-processing.cjs；node verify-ink-density.cjs；node verify-batch.cjs；node verify-updates.cjs。真实 WASM 测试覆盖分块与整图结果一致、连续处理内存复用、淡字与透印、插图灰阶、黑白模式及工作线程入口。桌面测试不能代替 iPhone 实机评估。

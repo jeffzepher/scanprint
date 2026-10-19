@@ -1,6 +1,6 @@
-import {historyStore} from './history.js?v=25';
-import {perspective,validQuad,imageCanvas,makeCanvas,processImage} from './app.js?v=25';
-import './document-core.js?v=25';
+import {historyStore} from './history.js?v=24';
+import {perspective,validQuad,imageCanvas,makeCanvas,processImage} from './app.js?v=24';
+import './document-core.js?v=24';
 const el=id=>document.getElementById(id),core=DocumentCore;
 let pdfLibrary;
 async function pdfLib(){if(globalThis.PDFLib)return globalThis.PDFLib;if(!pdfLibrary)pdfLibrary=new Promise((resolve,reject)=>{const s=document.createElement('script');s.src='./vendor/pdf-lib.min.js';s.onload=()=>resolve(globalThis.PDFLib);s.onerror=()=>{pdfLibrary=null;reject(Error('PDF 组件加载失败'))};document.head.append(s)});return pdfLibrary}
